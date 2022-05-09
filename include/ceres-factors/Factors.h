@@ -267,9 +267,17 @@ class SE3ReprojectionFactor
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   SE3ReprojectionFactor(
-      const Matrix3f &K,
+      const double &fx,
+      const double &fy,
+      const double &cx,
+      const double &cy,
       const Vector2f &img_coords,
-      const Vector3f &world_coords) : _K(K), _img_coords(img_coords), _world_coords(world_coords) {}
+      const Vector3f &world_coords) : _fx(fx),
+                                      _fy(fy),
+                                      _cx(cx),
+                                      _cy(cy),
+                                      _img_coords(img_coords),
+                                      _world_coords(world_coords) {}
 
   template <typename T>
   bool operator()(const T *_H, T *res) const
@@ -277,25 +285,36 @@ public:
     SE3<T> H(_H);
     Map<Matrix<T, 2, 1>> r(res);
     Matrix<T, 3, 1> camera_coords = H.inverse() * _world_coords.cast<T>();
-    Matrix<T, 3, 1> projh = _K.cast<T>() * camera_coords;
-    projh /= projh.z();
-    Map<Matrix<T, 2, 1>> proj(projh.data());
+    Matrix<T, 2, 1> proj;
+    proj << (T)_fx * camera_coords.x() / camera_coords.z() + (T)_cx,
+        (T)_fy * camera_coords.y() / camera_coords.z() + (T)_cy;
     r = _img_coords.cast<T>() - proj;
     return true;
   }
 
   static ceres::CostFunction *Create(
-      const Matrix3f &K,
+      const double &fx,
+      const double &fy,
+      const double &cx,
+      const double &cy,
       const Vector2f &img_coords,
       const Vector3f &world_coords)
   {
     return new ceres::AutoDiffCostFunction<SE3ReprojectionFactor,
                                            2,
-                                           7>(new SE3ReprojectionFactor(K, img_coords, world_coords));
+                                           7>(new SE3ReprojectionFactor(fx,
+                                                                        fy,
+                                                                        cx,
+                                                                        cy,
+                                                                        img_coords,
+                                                                        world_coords));
   }
 
 private:
-  Vector2f _img_coords;
-  Vector3f _world_coords;
-  Matrix3f _K;
+  const Vector2f _img_coords;
+  const Vector3f _world_coords;
+  const double _fx;
+  const double _fy;
+  const double _cx;
+  const double _cy;
 };
